@@ -23,20 +23,21 @@ public interface JenkinsClient {
     Map<JenkinsJob, Set<Build>> getInstanceJobs(String instanceUrl);
 
     /**
-     *
-     * @param buildUrl the build url
-     * @return boolean
-     */
-    boolean buildHasCucumberResults(String buildUrl);
+    *
+    * @param buildUrl the build url
+    * @return boolean
+    */
+    boolean buildHasTestNGResults(String buildUrl);
 
-    /**
-     * This method is responsible for going to the Jenkins systems, accessing a specific build, getting the
-     * (cucumber) results.json file, and parsing it to a TestResult
-     *
-     * @param buildUrl url of the Jenkins build
-     * @return a TestResult
-     */
-    TestResult getCucumberTestResult(String buildUrl);
-
+   /**
+    * This method is responsible for going to the Jenkins systems, accessing a specific build, getting the
+    * (cucumber) results.json file, and parsing it to a TestResult
+    *
+    * @param buildUrl url of the Jenkins build
+    * @return a TestResult
+    */
+    TestResult getTestNGTestResult(String buildUrl);
+   
     Build getLastSuccessfulBuild (String buildUrl);
+
 }

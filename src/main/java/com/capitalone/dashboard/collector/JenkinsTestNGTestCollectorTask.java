@@ -3,16 +3,17 @@ package com.capitalone.dashboard.collector;
 import com.capitalone.dashboard.model.Build;
 import com.capitalone.dashboard.model.CollectorItem;
 import com.capitalone.dashboard.model.CollectorType;
-import com.capitalone.dashboard.model.JenkinsCucumberTestCollector;
+import com.capitalone.dashboard.model.JenkinsTestNGTestCollector;
 import com.capitalone.dashboard.model.JenkinsJob;
 import com.capitalone.dashboard.model.TestResult;
 import com.capitalone.dashboard.repository.BaseCollectorRepository;
 import com.capitalone.dashboard.repository.ComponentRepository;
-import com.capitalone.dashboard.repository.JenkinsCucumberTestCollectorRepository;
-import com.capitalone.dashboard.repository.JenkinsCucumberTestJobRepository;
+import com.capitalone.dashboard.repository.JenkinsTestNGTestCollectorRepository;
+import com.capitalone.dashboard.repository.JenkinsTestNGTestJobRepository;
 import com.capitalone.dashboard.repository.TestResultRepository;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
@@ -25,52 +26,53 @@ import java.util.Set;
 @SuppressWarnings("PMD.UnnecessaryFullyQualifiedName")
 // Will need to rename com.capitalone.dashboard.Component as it conflicts with Spring.
 @Component
-public class JenkinsCucumberTestCollectorTask extends
-        CollectorTask<JenkinsCucumberTestCollector> {
+public class JenkinsTestNGTestCollectorTask extends
+        CollectorTask<JenkinsTestNGTestCollector> {
 
-    private final JenkinsCucumberTestCollectorRepository jenkinsCucumberTestCollectorRepository;
-    private final JenkinsCucumberTestJobRepository jenkinsCucumberTestJobRepository;
+    private final JenkinsTestNGTestCollectorRepository jenkinsTestNGTestCollectorRepository;
+    private final JenkinsTestNGTestJobRepository jenkinsTestNGTestJobRepository;
+    
     private final TestResultRepository testResultRepository;
     private final JenkinsClient jenkinsClient;
-    private final JenkinsSettings jenkinsCucumberTestSettings;
+    private final JenkinsTestNGSettings jenkinsTestNGTestSettings;
     private final ComponentRepository dbComponentRepository;
 
     @Autowired
-    public JenkinsCucumberTestCollectorTask(
+    public JenkinsTestNGTestCollectorTask(
             TaskScheduler taskScheduler,
-            JenkinsCucumberTestCollectorRepository jenkinsCucumberTestCollectorRepository,
-            JenkinsCucumberTestJobRepository jenkinsCucumberTestJobRepository,
+            JenkinsTestNGTestCollectorRepository jenkinsTestNGTestCollectorRepository,
+            JenkinsTestNGTestJobRepository jenkinsTestNGTestJobRepository,
             TestResultRepository testResultRepository,
-            JenkinsClient jenkinsCucumberTestClient,
-            JenkinsSettings jenkinsCucumberTestSettings,
+            JenkinsClient jenkinsTestNGTestClient,
+            JenkinsTestNGSettings jenkinsTestNGTestSettings,
             ComponentRepository dbComponentRepository) {
-        super(taskScheduler, "JenkinsCucumberTest");
-        this.jenkinsCucumberTestCollectorRepository = jenkinsCucumberTestCollectorRepository;
-        this.jenkinsCucumberTestJobRepository = jenkinsCucumberTestJobRepository;
-        this.testResultRepository = testResultRepository;
-        this.jenkinsClient = jenkinsCucumberTestClient;
-        this.jenkinsCucumberTestSettings = jenkinsCucumberTestSettings;
+        super(taskScheduler, "JenkinsTestNGTest");
+        this.jenkinsTestNGTestCollectorRepository = jenkinsTestNGTestCollectorRepository;
+        this.jenkinsTestNGTestJobRepository = jenkinsTestNGTestJobRepository;
+        this.testResultRepository = testResultRepository;  //new TestResultRepository();
+        this.jenkinsClient = jenkinsTestNGTestClient;
+        this.jenkinsTestNGTestSettings = jenkinsTestNGTestSettings;
         this.dbComponentRepository = dbComponentRepository;
     }
 
     @Override
-    public JenkinsCucumberTestCollector getCollector() {
-        return JenkinsCucumberTestCollector
-                .prototype(jenkinsCucumberTestSettings.getServers());
+    public JenkinsTestNGTestCollector getCollector() {
+        return JenkinsTestNGTestCollector
+                .prototype(jenkinsTestNGTestSettings.getServers());
     }
 
     @Override
-    public BaseCollectorRepository<JenkinsCucumberTestCollector> getCollectorRepository() {
-        return jenkinsCucumberTestCollectorRepository;
+    public BaseCollectorRepository<JenkinsTestNGTestCollector> getCollectorRepository() {
+        return jenkinsTestNGTestCollectorRepository;
     }
 
     @Override
     public String getCron() {
-        return jenkinsCucumberTestSettings.getCron();
+        return jenkinsTestNGTestSettings.getCron();
     }
 
     @Override
-    public void collect(JenkinsCucumberTestCollector collector) {
+    public void collect(JenkinsTestNGTestCollector collector) {
 
         long start = System.currentTimeMillis();
 
@@ -92,7 +94,7 @@ public class JenkinsCucumberTestCollectorTask extends
             }
             else
             {
-            	log("WARNING: No Enabled Jobs found with artifacts pattern: " + jenkinsCucumberTestSettings.getCucumberJsonRegex());
+            	log("WARNING: No Enabled Jobs found with artifacts pattern: " + jenkinsTestNGTestSettings.getTestNGXmlRegEx());
             }
             log("Finished", start);
         }
@@ -104,7 +106,7 @@ public class JenkinsCucumberTestCollectorTask extends
      * @param collector the collector
      */
 
-    private void clean(JenkinsCucumberTestCollector collector) {
+    private void clean(JenkinsTestNGTestCollector collector) {
 
         // First delete jobs that will be no longer collected because servers have moved etc.
         deleteUnwantedJobs(collector);
@@ -129,36 +131,36 @@ public class JenkinsCucumberTestCollectorTask extends
         List<JenkinsJob> jobList = new ArrayList<>();
         Set<ObjectId> udId = new HashSet<>();
         udId.add(collector.getId());
-        for (JenkinsJob job : jenkinsCucumberTestJobRepository
+        for (JenkinsJob job : jenkinsTestNGTestJobRepository
                 .findByCollectorIdIn(udId)) {
             if (job != null) {
                 job.setEnabled(uniqueIDs.contains(job.getId()));
                 jobList.add(job);
             }
         }
-        jenkinsCucumberTestJobRepository.save(jobList);
+        jenkinsTestNGTestJobRepository.save(jobList);
     }
 
-    private void deleteUnwantedJobs(JenkinsCucumberTestCollector collector) {
+    private void deleteUnwantedJobs(JenkinsTestNGTestCollector collector) {
 
         List<JenkinsJob> deleteJobList = new ArrayList<>();
         Set<ObjectId> udId = new HashSet<>();
         udId.add(collector.getId());
-        for (JenkinsJob job : jenkinsCucumberTestJobRepository.findByCollectorIdIn(udId)) {
+        for (JenkinsJob job : jenkinsTestNGTestJobRepository.findByCollectorIdIn(udId)) {
             if (!collector.getBuildServers().contains(job.getInstanceUrl()) ||
                     (!job.getCollectorId().equals(collector.getId()))) {
                 deleteJobList.add(job);
             }
         }
 
-        jenkinsCucumberTestJobRepository.delete(deleteJobList);
+        jenkinsTestNGTestJobRepository.delete(deleteJobList);
 
     }
     // Jenkins Helper methods
 
     private List<JenkinsJob> enabledJobs(
-            JenkinsCucumberTestCollector collector, String instanceUrl) {
-        return jenkinsCucumberTestJobRepository.findEnabledJenkinsJobs(
+            JenkinsTestNGTestCollector collector, String instanceUrl) {
+        return jenkinsTestNGTestJobRepository.findEnabledJenkinsJobs(
                 collector.getId(), instanceUrl);
     }
 
@@ -166,21 +168,21 @@ public class JenkinsCucumberTestCollectorTask extends
      * Adds new {@link JenkinsJob}s to the database as disabled jobs.
      *
      * @param jobs      list of {@link JenkinsJob}s
-     * @param collector the {@link JenkinsCucumberTestCollector}
+     * @param collector the {@link JenkinsTestNGTestCollector}
      */
     private void addNewJobs(Set<JenkinsJob> jobs,
-                            JenkinsCucumberTestCollector collector) {
+                            JenkinsTestNGTestCollector collector) {
         long start = System.currentTimeMillis();
         int count = 0;
 
         for (JenkinsJob job : jobs) {
-            if (jenkinsClient.buildHasCucumberResults(job.getJobUrl())
+            if (jenkinsClient.buildHasTestNGResults(job.getJobUrl())
                     && isNewJob(collector, job)) {
                 job.setCollectorId(collector.getId());
                 job.setEnabled(false); // Do not enable for collection. Will be
                 // enabled when added to dashboard
                 job.setDescription(job.getJobName());
-                jenkinsCucumberTestJobRepository.save(job);
+                jenkinsTestNGTestJobRepository.save(job);
                 count++;
             }
         }
@@ -192,12 +194,11 @@ public class JenkinsCucumberTestCollectorTask extends
         int count = 0;
         for (JenkinsJob job : enabledJobs) {
             Build buildSummary = jenkinsClient.getLastSuccessfulBuild(job.getJobUrl());
-			if (isNewCucumberResult(job, buildSummary)) {
+			if (isNewTestNGResult(job, buildSummary)) {
                 job.setLastUpdated(System.currentTimeMillis());
-                jenkinsCucumberTestJobRepository.save(job);
+                jenkinsTestNGTestJobRepository.save(job);
                 // Obtain the Test Result
-                TestResult result = jenkinsClient
-                        .getCucumberTestResult(job.getJobUrl());
+                TestResult result = jenkinsClient.getTestNGTestResult(job.getJobUrl());
                 if (result != null) {
                     result.setCollectorItemId(job.getId());
                     result.setTimestamp(System.currentTimeMillis());
@@ -209,13 +210,13 @@ public class JenkinsCucumberTestCollectorTask extends
         log("New test suites", start, count);
     }
 
-    private boolean isNewJob(JenkinsCucumberTestCollector collector,
+    private boolean isNewJob(JenkinsTestNGTestCollector collector,
                              JenkinsJob job) {
-        return jenkinsCucumberTestJobRepository.findJenkinsJob(
+        return jenkinsTestNGTestJobRepository.findJenkinsJob(
                 collector.getId(), job.getInstanceUrl(), job.getJobName()) == null;
     }
 
-    private boolean isNewCucumberResult(JenkinsJob job, Build build) {
+    private boolean isNewTestNGResult(JenkinsJob job, Build build) {
         return testResultRepository.findByCollectorItemIdAndExecutionId(
                 job.getId(), build.getNumber()) == null;
     }

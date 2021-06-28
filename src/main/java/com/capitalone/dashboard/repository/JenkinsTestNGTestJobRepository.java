@@ -9,7 +9,7 @@ import java.util.List;
 /**
  *
  */
-public interface JenkinsCucumberTestJobRepository extends BaseCollectorItemRepository<JenkinsJob> {
+public interface JenkinsTestNGTestJobRepository extends BaseCollectorItemRepository<JenkinsJob> {
 
     @Query(value="{ 'collectorId' : ?0, options.instanceUrl : ?1, enabled: true}")
     List<JenkinsJob> findEnabledJenkinsJobs(ObjectId collectorId, String instanceUrl);

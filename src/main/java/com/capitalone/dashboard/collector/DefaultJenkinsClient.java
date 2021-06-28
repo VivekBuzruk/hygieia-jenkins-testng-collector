@@ -44,9 +44,10 @@ public class DefaultJenkinsClient implements JenkinsClient {
     private static final Log LOG = LogFactory.getLog(DefaultJenkinsClient.class);
 
     private final RestOperations rest;
-    private final Transformer<String, List<TestSuite>> cucumberTransformer;
-    private final Pattern cucumberJsonFilePattern;
-    private final JenkinsSettings settings;
+    private final Transformer<String, List<TestSuite>> testNGTransformer;
+    private final Pattern testNGXMLFilePattern;
+    
+    private final JenkinsTestNGSettings settings;
 
     private static final String JOBS_URL_SUFFIX = "/api/json?tree=jobs[name,url,builds[number,url],lastSuccessfulBuild[number]]";
     private static final String LAST_SUCCESSFUL_BUILD = "/lastSuccessfulBuild";
@@ -55,11 +56,11 @@ public class DefaultJenkinsClient implements JenkinsClient {
 
     @Autowired
     public DefaultJenkinsClient(RestOperationsSupplier restOperationsSupplier,
-                                Transformer<String, List<TestSuite>> cucumberTransformer,
-                                JenkinsSettings settings) {
+    		                    Transformer<String, List<TestSuite>> testNGTransformer,
+                                JenkinsTestNGSettings settings) {
         this.rest = restOperationsSupplier.get();
-        this.cucumberTransformer = cucumberTransformer;
-        this.cucumberJsonFilePattern = Pattern.compile(settings.getCucumberJsonRegex());
+        this.testNGTransformer = testNGTransformer;
+        this.testNGXMLFilePattern = Pattern.compile(settings.getTestNGXmlRegEx());
         this.settings = settings;
     }
 
@@ -123,8 +124,7 @@ public class DefaultJenkinsClient implements JenkinsClient {
     }
 
     @Override
-    public boolean buildHasCucumberResults(String buildUrl) {
-
+    public boolean buildHasTestNGResults(String buildUrl) {
         JSONObject buildJson;
         try {
             // Get Build info
@@ -137,7 +137,7 @@ public class DefaultJenkinsClient implements JenkinsClient {
                     JSONObject artifact = (JSONObject) artifactObj;
 
                     // return true if we find an archived file that matches the naming of the regex config
-                    if (cucumberJsonFilePattern.matcher(getString(artifact, "fileName")).matches()) {
+                    if (testNGXMLFilePattern.matcher(getString(artifact, "fileName")).matches()) {
                         return true;
 	                        // TODO: maybe we want to validate that we can parse the json
 	                        //String cucumberJson = getCucumberJson(buildUrl, getString(artifact, "relativePath"));
@@ -157,62 +157,70 @@ public class DefaultJenkinsClient implements JenkinsClient {
 
         return false;
     }
-
-
+    
     protected List<TestCapability> getCapabilities(JSONObject buildJson, String buildUrl) {
         List<TestCapability> capabilities = new ArrayList<>();
 
         for (Object artifactObj : (JSONArray) buildJson.get("artifacts")) {
             JSONObject artifact = (JSONObject) artifactObj;
-            if (cucumberJsonFilePattern.matcher(getString(artifact, "fileName")).matches()) {
-                String cucumberJson = getCucumberJson(buildUrl, getString(artifact, "relativePath"));
-                if (!StringUtils.isEmpty(cucumberJson)) {
-                    TestCapability cap = new TestCapability();
-                    cap.setType(TestSuiteType.Functional);
-                    List<TestSuite> testSuites = cucumberTransformer.transformer(cucumberJson);
-                    cap.setDescription(getCapabilityDescription(cucumberJsonFilePattern.pattern(), getString(artifact, "relativePath")));
-                    cap.getTestSuites().addAll(testSuites); //add test suites
-                    long duration = 0;
-                    int testSuiteSkippedCount = 0, testSuiteSuccessCount = 0, testSuiteFailCount = 0, testSuiteUnknownCount = 0;
-                    for (TestSuite t : testSuites) {
-                        duration += t.getDuration();
-                        switch (t.getStatus()) {
-                            case Success:
-                                testSuiteSuccessCount++;
-                                break;
-                            case Failure:
-                                testSuiteFailCount++;
-                                break;
-                            case Skipped:
-                                testSuiteSkippedCount++;
-                                break;
-                            default:
-                                testSuiteUnknownCount++;
-                                break;
-                        }
-                    }
-                    if (testSuiteFailCount > 0) {
-                        cap.setStatus(TestCaseStatus.Failure);
-                    } else if (testSuiteSkippedCount > 0) {
-                        cap.setStatus(TestCaseStatus.Skipped);
-                    } else if (testSuiteSuccessCount > 0) {
-                        cap.setStatus(TestCaseStatus.Success);
-                    } else {
-                        cap.setStatus(TestCaseStatus.Unknown);
-                    }
-                    cap.setFailedTestSuiteCount(testSuiteFailCount);
-                    cap.setSkippedTestSuiteCount(testSuiteSkippedCount);
-                    cap.setSuccessTestSuiteCount(testSuiteSuccessCount);
-                    cap.setUnknownStatusTestSuiteCount(testSuiteUnknownCount);
-                    cap.setTotalTestSuiteCount(testSuites.size());
-                    cap.setDuration(duration);
-                    cap.setExecutionId(buildJson.get("number").toString());
+            if (testNGXMLFilePattern.matcher(getString(artifact, "fileName")).matches()) {
+                String testNGXML = getTestNGXml(buildUrl, getString(artifact, "relativePath"));
+                if (!StringUtils.isEmpty(testNGXML)) {
+                    List<TestSuite> testSuites = testNGTransformer.transformer(testNGXML);
+                    String executionID = buildJson.get("number").toString();
+                    String patternInfo = testNGXMLFilePattern.pattern();                  
+                    TestCapability cap = suitesToCapability(artifact, testSuites, executionID, patternInfo);
                     capabilities.add(cap);
                 }
-            }
+            } 
         }
         return capabilities;
     }
+
+	private TestCapability suitesToCapability(JSONObject artifact, List<TestSuite> testSuites, String executionID,
+			String patternInfo) {
+		TestCapability cap = new TestCapability();
+		cap.setType(TestSuiteType.Functional);
+
+		cap.setDescription(getCapabilityDescription(patternInfo, getString(artifact, "relativePath")));
+		cap.getTestSuites().addAll(testSuites); //add test suites
+		long duration = 0;
+		int testSuiteSkippedCount = 0, testSuiteSuccessCount = 0, testSuiteFailCount = 0, testSuiteUnknownCount = 0;
+		for (TestSuite t : testSuites) {
+		    duration += t.getDuration();
+		    switch (t.getStatus()) {
+		        case Success:
+		            testSuiteSuccessCount++;
+		            break;
+		        case Failure:
+		            testSuiteFailCount++;
+		            break;
+		        case Skipped:
+		            testSuiteSkippedCount++;
+		            break;
+		        default:
+		            testSuiteUnknownCount++;
+		            break;
+		    }
+		}
+		if (testSuiteFailCount > 0) {
+		    cap.setStatus(TestCaseStatus.Failure);
+		} else if (testSuiteSkippedCount > 0) {
+		    cap.setStatus(TestCaseStatus.Skipped);
+		} else if (testSuiteSuccessCount > 0) {
+		    cap.setStatus(TestCaseStatus.Success);
+		} else {
+		    cap.setStatus(TestCaseStatus.Unknown);
+		}
+		cap.setFailedTestSuiteCount(testSuiteFailCount);
+		cap.setSkippedTestSuiteCount(testSuiteSkippedCount);
+		cap.setSuccessTestSuiteCount(testSuiteSuccessCount);
+		cap.setUnknownStatusTestSuiteCount(testSuiteUnknownCount);
+		cap.setTotalTestSuiteCount(testSuites.size());
+		cap.setDuration(duration);
+		cap.setExecutionId(executionID);
+		return cap;
+	}
 
     protected TestResult buildTestResultObject(JSONObject buildJson, String buildUrl, List<TestCapability> capabilities) {
         if (!capabilities.isEmpty()) {
@@ -256,9 +264,8 @@ public class DefaultJenkinsClient implements JenkinsClient {
         return null;
     }
 
-
     @Override
-    public TestResult getCucumberTestResult(String buildUrl) {
+    public TestResult getTestNGTestResult(String buildUrl) {
         try {
             JSONObject buildJson = (JSONObject) new JSONParser().parse(getJson(buildUrl, LAST_SUCCESSFUL_BUILD_ARTIFACT_SUFFIX));
             List<TestCapability> capabilities = getCapabilities(buildJson, buildUrl);
@@ -272,19 +279,17 @@ public class DefaultJenkinsClient implements JenkinsClient {
         return null;
     }
 
-
-    protected String getCucumberJson(String buildUrl, String artifactRelativePath) {
-        return getJson(StringUtils.removeEnd(buildUrl, "/") + LAST_SUCCESSFUL_BUILD, "/artifact/" + artifactRelativePath);
+    protected String getTestNGXml(String buildUrl, String artifactRelativePath) {
+        return getXml(StringUtils.removeEnd(buildUrl, "/") + LAST_SUCCESSFUL_BUILD, "/artifact/" + artifactRelativePath);
     }
 
-
     /**
-     * @param cucumberJsonPattern
+     * @param testNGJsonPattern
      * @param fileName
      * @return String
      */
-    private String getCapabilityDescription(String cucumberJsonPattern, String fileName) {
-        return StringUtils.removeEnd(fileName, cucumberJsonPattern);
+    private String getCapabilityDescription(String fileTypePattern, String fileName) {
+        return StringUtils.removeEnd(fileName, fileTypePattern);
     }
 
     // Helper Methods
@@ -304,6 +309,18 @@ public class DefaultJenkinsClient implements JenkinsClient {
     }
 
     private String getJson(String baseUrl, String endpoint) {
+        String url = StringUtils.removeEnd(baseUrl, "/") + endpoint;
+        ResponseEntity<String> result = null;
+        try {
+            result = makeRestCall(url);
+            return result.getBody();
+        } catch (MalformedURLException mfe) {
+            LOG.error("malformed url" + mfe.getStackTrace());
+        }
+        return "";
+    }
+
+    private String getXml(String baseUrl, String endpoint) {
         String url = StringUtils.removeEnd(baseUrl, "/") + endpoint;
         ResponseEntity<String> result = null;
         try {

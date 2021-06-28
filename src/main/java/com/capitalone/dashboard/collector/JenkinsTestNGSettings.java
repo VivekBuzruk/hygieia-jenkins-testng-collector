@@ -2,6 +2,7 @@ package com.capitalone.dashboard.collector;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import java.util.List;
 
 /**
@@ -10,12 +11,16 @@ import java.util.List;
  * Created by ltm688 on 2/12/15.
  */
 @Component
-@ConfigurationProperties(prefix = "jenkins-cucumber")
-public class JenkinsSettings {
+@ConfigurationProperties(prefix = "jenkins-testng")
+public class JenkinsTestNGSettings {
 
+	@Value("${jenkins-testng.cron:0/5 * * * * *}")
     private String cron;
     private List<String> servers;
-    private String cucumberJsonRegex = "cucumber.json";
+
+    @Value("${jenkins-testng.testNGXmlRegEx:testng-results.xml}")
+    private String testNGXmlRegEx = "testng-results.xml";
+    
     private String username;
     private String apiKey;
     private String dockerLocalHostIP; //null if not running in docker on http://localhost
@@ -36,15 +41,15 @@ public class JenkinsSettings {
         this.servers = servers;
     }
 
-    public String getCucumberJsonRegex() {
-        return cucumberJsonRegex;
-    }
+    public String getTestNGXmlRegEx() {
+		return testNGXmlRegEx;
+	}
 
-    public void setCucumberJsonRegex(String cucumberJsonRegex) {
-        this.cucumberJsonRegex = cucumberJsonRegex;
-    }
+	public void setTestNGXmlRegEx(String testNGXmlRegEx) {
+		this.testNGXmlRegEx = testNGXmlRegEx;
+	}
 
-    public String getUsername() {
+	public String getUsername() {
         return username;
     }
 

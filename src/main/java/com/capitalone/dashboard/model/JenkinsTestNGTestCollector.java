@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * Extension of Collector that stores current build server configuration.
  */
-public class JenkinsCucumberTestCollector extends Collector {
+public class JenkinsTestNGTestCollector extends Collector {
     private List<String> buildServers = new ArrayList<>();
 
     public List<String> getBuildServers() {
@@ -19,9 +19,9 @@ public class JenkinsCucumberTestCollector extends Collector {
         this.buildServers = buildServers;
     }
 
-    public static JenkinsCucumberTestCollector prototype(List<String> buildServers) {
-        JenkinsCucumberTestCollector protoType = new JenkinsCucumberTestCollector();
-        protoType.setName("JenkinsCucumberTest");
+    public static JenkinsTestNGTestCollector prototype(List<String> buildServers) {
+        JenkinsTestNGTestCollector protoType = new JenkinsTestNGTestCollector();
+        protoType.setName("JenkinsTestNGTest");
         protoType.setCollectorType(CollectorType.Test);
         protoType.setOnline(true);
         protoType.setEnabled(true);
